@@ -1,0 +1,45 @@
+name: Pipeline CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install core dependencies
+        run: pip install numpy pandas scikit-learn matplotlib seaborn joblib
+
+      - name: Run full pipeline (Phases 2-9 + environmental module)
+        run: python scripts/run_pipeline.py
+
+      - name: Check model quality gate (R² >= 0.85)
+        run: |
+          python -c "
+          import pandas as pd
+          df = pd.read_csv('models/model_comparison.csv')
+          best_r2 = df['R2'].max()
+          print(f'Best R2: {best_r2}')
+          assert best_r2 >= 0.85, f'Best model R2 ({best_r2}) below 0.85 threshold'
+          print('Quality gate passed.')
+          "
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-outputs
+          path: |
+            data/*.csv
+            figures/*.png
+            models/*.csv
+            models/*.txt
